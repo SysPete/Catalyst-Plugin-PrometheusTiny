@@ -5,7 +5,7 @@ WriteMakefile(
     ABSTRACT         => "Prometheus metrics for Catalyst",
     AUTHOR           => q{Peter Mottram (SysPete) <peter@sysnix.com>},
     VERSION_FROM     => 'lib/Catalyst/Plugin/PrometheusTiny.pm',
-    MIN_PERL_VERSION => 5.008,
+    MIN_PERL_VERSION => 5.010001,
     TEST_REQUIRES   => {
         'Scalar::Util'  => 0,
         'Sub::Override' => 0,

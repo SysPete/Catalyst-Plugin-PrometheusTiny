@@ -1,5 +1,8 @@
 Revision history for Catalyst::Plugin::PrometheusTiny
 
+
+    * bump min Perl version to 5.10.1 due to upstream deps
+
 0.002 - 2021-06-05
 
     * remove a regexp modifier added in Perl 5.22
