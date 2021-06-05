@@ -1,5 +1,8 @@
 Revision history for Catalyst::Plugin::PrometheusTiny
 
+
+    * remove a regexp modifier added in Perl 5.22
+
 0.001 - 2021-06-05
 
 	* Initial release

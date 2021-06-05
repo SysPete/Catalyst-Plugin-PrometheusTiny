@@ -52,7 +52,7 @@ sub prometheus {
 
         $ignore_path_regexp = $config->{ignore_path_regexp};
         if ($ignore_path_regexp) {
-            $ignore_path_regexp = qr/$ignore_path_regexp/n
+            $ignore_path_regexp = qr/$ignore_path_regexp/
               unless 'Regexp' eq ref $ignore_path_regexp;
         }
 
