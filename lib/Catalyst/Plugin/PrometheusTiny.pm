@@ -5,6 +5,8 @@ use warnings;
 
 our $VERSION = '0.001';
 
+$VERSION = eval $VERSION;
+
 use Carp            ();
 use Catalyst::Utils ();
 use Moose::Role;
@@ -133,6 +135,8 @@ sub index : Path Args(0) {
     $res->content_type("text/plain");
     $res->output( $c->prometheus->format );
 }
+
+1;
 
 =head1 NAME
 
@@ -276,6 +280,21 @@ metrics. Something like:
         $res->output( $c->prometheus->format );
     }
 
-=cut
+=head1 AUTHOR
 
-1;
+Peter Mottram (SysPete) <peter@sysnix.com>
+
+=head1 CONTRIBUTORS
+
+None yet.
+
+=head1 COPYRIGHT
+
+Copyright (c) 2021 the Catalyst::Plugin::PrometheusTiny L</AUTHOR>
+and L</CONTRIBUTORS> as listed above.
+
+=head1 LICENSE
+
+This library is free software and may be distributed under the same terms
+as perl itself.
+
