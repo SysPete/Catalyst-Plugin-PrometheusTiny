@@ -13,39 +13,42 @@ use Moose::Role;
 use Prometheus::Tiny::Shared;
 
 my $defaults = {
-    metrics => [
-        {
-            name => 'http_request_duration_seconds',
+    metrics => {
+        http_request_duration_seconds => {
             help => 'Request durations in seconds',
             type => 'histogram',
         },
-        {
-            name    => 'http_request_size_bytes',
+        http_request_size_bytes => {
             help    => 'Request sizes in bytes',
             type    => 'histogram',
             buckets => [ 1, 50, 100, 1_000, 50_000, 500_000, 1_000_000 ],
         },
-        {
-            name => 'http_requests_total',
+        http_requests_total => {
             help => 'Total number of http requests processed',
             type => 'counter',
         },
-        {
-            name    => 'http_response_size_bytes',
+        http_response_size_bytes => {
             help    => 'Response sizes in bytes',
             type    => 'histogram',
             buckets => [ 1, 50, 100, 1_000, 50_000, 500_000, 1_000_000 ],
         }
-    ],
+    },
 };
 
 my ( $prometheus, $ignore_path_regexp, $no_default_controller );
 
+# for testing
+sub _clear_prometheus {
+    undef $prometheus;
+}
+
 sub prometheus {
     my $c = shift;
     $prometheus ||= do {
-        my $config = Catalyst::Utils::merge_hashes( $defaults,
-            $c->config->{'Plugin::PrometheusTiny'} // {} );
+        my $config = Catalyst::Utils::merge_hashes(
+            $defaults,
+            $c->config->{'Plugin::PrometheusTiny'} || {}
+        );
 
         $ignore_path_regexp = $config->{ignore_path_regexp};
         if ($ignore_path_regexp) {
@@ -56,18 +59,18 @@ sub prometheus {
         $no_default_controller = $config->{no_default_controller};
 
         my $metrics = $config->{metrics};
-        Carp::croak "Plugin::PrometheusTiny metrics must be an array reference"
-          unless 'ARRAY' eq ref $metrics;
+        Carp::croak "Plugin::PrometheusTiny metrics must be a hash reference"
+          unless 'HASH' eq ref $metrics;
 
-        my $prom = Prometheus::Tiny::Shared->new(
-            ( filename => $config->{filename} ) x defined $config->{filename} );
+        my $prom
+          = Prometheus::Tiny::Shared->new(
+            ( filename => $config->{filename} ) x defined $config->{filename}
+          );
 
-        for my $metric (@$metrics) {
+        for my $name ( sort keys %$metrics ) {
             $prom->declare(
-                $metric->{name},
-                help => $metric->{help},
-                type => $metric->{type},
-                ( buckets => $metric->{buckets} ) x defined $metric->{buckets},
+                $name,
+                %{ $metrics->{$name} },
             );
         }
 
@@ -101,10 +104,14 @@ after finalize => sub {
         $response->has_body ? length( $response->body ) : 0,
         { method => $method, code => $code }
     );
-    $prometheus->inc( 'http_requests_total',
-        { method => $method, code => $code } );
-    $prometheus->histogram_observe( 'http_request_duration_seconds',
-        $c->stats->elapsed, { method => $method, code => $code } );
+    $prometheus->inc(
+        'http_requests_total',
+        { method => $method, code => $code }
+    );
+    $prometheus->histogram_observe(
+        'http_request_duration_seconds',
+        $c->stats->elapsed, { method => $method, code => $code }
+    );
 };
 
 before setup_components => sub {
@@ -112,8 +119,10 @@ before setup_components => sub {
     return
       if $class->config->{'Plugin::PrometheusTiny'}{no_default_controller};
 
-    $class->inject_component( "Controller::Metrics" =>
-          { from_component => "Catalyst::Plugin::PrometheusTiny::Controller" }
+    $class->inject_component(
+        "Controller::Metrics" => {
+            from_component => "Catalyst::Plugin::PrometheusTiny::Controller"
+        }
     );
 };
 
@@ -154,19 +163,17 @@ Use the plugin in your application class:
 Add more metrics:
 
     MyApp->config('Plugin::PrometheusTiny' => {
-        metrics => [
-            {
-                name    => 'myapp_thing_to_measure',
+        metrics => {
+            myapp_thing_to_measure => {
                 help    => 'Some thing we want to measure',
                 type    => 'histogram',
                 buckets => [ 1, 50, 100, 1_000, 50_000, 500_000, 1_000_000 ],
             },
-            {
-                name    => 'myapp_something_else_to_measure',
+            myapp_something_else_to_measure => {
                 help    => 'Some other thing we want to measure',
                 type    => 'counter',
             },
-        ],
+        },
     });
 
 And somewhere in your controller classes:
@@ -195,24 +202,20 @@ See L<Prometheus::Tiny> for more details of the kind of metrics supported.
 
 The following metrics are included by default:
 
-    {
-        name    => 'http_request_duration_seconds',
-        help    => 'Request durations in seconds',
-        type    => 'histogram',
+    http_request_duration_seconds => {
+        help => 'Request durations in seconds',
+        type => 'histogram',
     },
-    {
-        name    => 'http_request_size_bytes',
+    http_request_size_bytes => {
         help    => 'Request sizes in bytes',
         type    => 'histogram',
         buckets => [ 1, 50, 100, 1_000, 50_000, 500_000, 1_000_000 ],
     },
-    {
-        name    => 'http_requests_total',
-        help    => 'Total number of http requests processed',
-        type    => 'counter',
+    http_requests_total => {
+        help => 'Total number of http requests processed',
+        type => 'counter',
     },
-    {
-        name    => 'http_response_size_bytes',
+    http_response_size_bytes => {
         help    => 'Response sizes in bytes',
         type    => 'histogram',
         buckets => [ 1, 50, 100, 1_000, 50_000, 500_000, 1_000_000 ],
@@ -248,14 +251,13 @@ metrics.
 
 =head2 metrics
 
-    metrics => [
-        {
-            name => $metric_name,
+    metrics => {
+        $metric_name => {
             help => $metric_help_text,
             type => $metric_type,
         },
         # more...
-    ]
+    }
 
 See L<Prometheus::Tiny/declare>. Declare extra metrics to be added to those
 included with the plugin.
