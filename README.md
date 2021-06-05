@@ -17,19 +17,17 @@ Add more metrics:
 
 ```perl
 MyApp->config('Plugin::PrometheusTiny' => {
-    metrics => [
-        {
-            name    => 'myapp_thing_to_measure',
+    metrics => {
+        myapp_thing_to_measure => {
             help    => 'Some thing we want to measure',
             type    => 'histogram',
             buckets => [ 1, 50, 100, 1_000, 50_000, 500_000, 1_000_000 ],
         },
-        {
-            name    => 'myapp_something_else_to_measure',
+        myapp_something_else_to_measure => {
             help    => 'Some other thing we want to measure',
             type    => 'counter',
         },
-    ],
+    },
 });
 ```
 
@@ -64,24 +62,20 @@ See [Prometheus::Tiny](https://metacpan.org/pod/Prometheus%3A%3ATiny) for more d
 The following metrics are included by default:
 
 ```perl
-{
-    name    => 'http_request_duration_seconds',
-    help    => 'Request durations in seconds',
-    type    => 'histogram',
+http_request_duration_seconds => {
+    help => 'Request durations in seconds',
+    type => 'histogram',
 },
-{
-    name    => 'http_request_size_bytes',
+http_request_size_bytes => {
     help    => 'Request sizes in bytes',
     type    => 'histogram',
     buckets => [ 1, 50, 100, 1_000, 50_000, 500_000, 1_000_000 ],
 },
-{
-    name    => 'http_requests_total',
-    help    => 'Total number of http requests processed',
-    type    => 'counter',
+http_requests_total => {
+    help => 'Total number of http requests processed',
+    type => 'counter',
 },
-{
-    name    => 'http_response_size_bytes',
+http_response_size_bytes => {
     help    => 'Response sizes in bytes',
     type    => 'histogram',
     buckets => [ 1, 50, 100, 1_000, 50_000, 500_000, 1_000_000 ],
@@ -123,14 +117,13 @@ metrics.
 ## metrics
 
 ```perl
-metrics => [
-    {
-        name => $metric_name,
+metrics => {
+    $metric_name => {
         help => $metric_help_text,
         type => $metric_type,
     },
     # more...
-]
+}
 ```
 
 See ["declare" in Prometheus::Tiny](https://metacpan.org/pod/Prometheus%3A%3ATiny#declare). Declare extra metrics to be added to those
