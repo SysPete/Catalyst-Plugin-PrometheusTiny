@@ -2,11 +2,15 @@ use ExtUtils::MakeMaker;
 ( do './maint/Makefile.PL.include' or die $@ ) unless -f 'META.yml';
 WriteMakefile(
     NAME             => "Catalyst::Plugin::PrometheusTiny",
+    ABSTRACT         => "Prometheus metrics for Catalyst",
     AUTHOR           => q{Peter Mottram (SysPete) <peter@sysnix.com>},
     VERSION_FROM     => 'lib/Catalyst/Plugin/PrometheusTiny.pm',
     MIN_PERL_VERSION => 5.008,
-    BUILD_REQUIRES   => {
-        'Test::More' => 0,
+    TEST_REQUIRES   => {
+        'Scalar::Util'  => 0,
+        'Sub::Override' => 0,
+        'Test::Deep'    => 0,
+        'Test::More'    => 0,
     },
     PREREQ_PM => {
         'Carp'                     => 0,
