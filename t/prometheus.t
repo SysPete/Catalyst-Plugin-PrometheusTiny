@@ -52,9 +52,9 @@ subtest 'test config merging of metrics' => sub {
       "we can create our dummy catalyst class";
 
     $obj->_clear_prometheus;
-    $obj->prometheus->histogram_observe('http_request_size_bytes', 50);
+    $obj->prometheus->histogram_observe( 'http_request_size_bytes', 50 );
 
-    is $obj->prometheus->format,q{# HELP frobnicate Testing 1, 2, 3
+    is $obj->prometheus->format, q{# HELP frobnicate Testing 1, 2, 3
 # TYPE frobnicate counter
 # HELP http_request_duration_seconds Request durations in seconds
 # TYPE http_request_duration_seconds histogram
