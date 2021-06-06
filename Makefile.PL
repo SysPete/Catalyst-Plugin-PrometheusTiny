@@ -16,7 +16,7 @@ WriteMakefile(
         'Carp'                     => 0,
         'Catalyst::Runtime'        => '5.900000',
         'Moose::Role'              => 0,
-        'Prometheus::Tiny'         => 0,
-        'Prometheus::Tiny::Shared' => 0,
+        'Prometheus::Tiny'         => '0.006',
+        'Prometheus::Tiny::Shared' => '0.021',
     },
 );
