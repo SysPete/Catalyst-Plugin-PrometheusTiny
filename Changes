@@ -1,5 +1,6 @@
 Revision history for Catalyst::Plugin::PrometheusTiny
 
+0.004 - 2021-06-06
 
     * allow simple configuration of endpoint path
     * bump deps on Prometheus::Tiny and ::Shared
