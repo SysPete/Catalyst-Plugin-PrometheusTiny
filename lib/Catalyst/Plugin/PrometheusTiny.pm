@@ -36,7 +36,12 @@ my $defaults = {
     },
 };
 
-my ( $prometheus, $ignore_path_regexp, $no_default_controller );
+my ($prometheus,               # instance
+    $ignore_path_regexp,       # set from config
+    $metrics_endpoint,         # set from config with default
+    $no_default_controller,    # set from config
+    $request_path              # derived from $metrics_endpoint
+);
 
 # for testing
 sub _clear_prometheus {
@@ -50,6 +55,20 @@ sub prometheus {
             $defaults,
             $c->config->{'Plugin::PrometheusTiny'} || {}
         );
+
+        $metrics_endpoint = $config->{endpoint};
+        if ($metrics_endpoint) {
+            if ( $metrics_endpoint !~ m|^/| ) {
+                Carp::croak
+                  "Plugin::PrometheusTiny endpoint '$metrics_endpoint' does not begin with '/'";
+            }
+        }
+        else {
+            $metrics_endpoint = '/metrics';
+        }
+
+        $request_path = $metrics_endpoint;
+        $request_path =~ s|^/||;
 
         $ignore_path_regexp = $config->{ignore_path_regexp};
         if ($ignore_path_regexp) {
@@ -85,7 +104,7 @@ after finalize => sub {
     my $request = $c->request;
 
     return
-      if !$no_default_controller && $request->path eq 'metrics';
+      if !$no_default_controller && $request->path eq $request_path;
 
     return
       if $ignore_path_regexp
@@ -117,34 +136,49 @@ after finalize => sub {
 
 before setup_components => sub {
     my $class = shift;
+
+    # initialise prometheus instance pre-fork and setup lexicals
+    $class->prometheus;
+
     return
       if $class->config->{'Plugin::PrometheusTiny'}{no_default_controller};
 
+    # Paranoia, as we're going to eval $metrics_endpoint
+    if ( $metrics_endpoint =~ s|[^-A-Za-z0-9\._~/]||g ) {
+        $class->log->warn(
+            "Plugin::PrometheusTiny unsafe characters removed from endpoint");
+    }
+
+    $class->log->info(
+        "Plugin::PrometheusTiny metrics endpoint installed at $metrics_endpoint"
+    );
+
+    eval qq|
+
+        package Catalyst::Plugin::PrometheusTiny::Controller;
+        use base 'Catalyst::Controller';
+
+        sub begin : Private { }
+        sub end : Private   { }
+
+        sub metrics : Path($metrics_endpoint) Args(0) {
+            my ( \$self, \$c ) = \@_;
+            my \$res = \$c->res;
+            \$res->content_type("text/plain");
+            \$res->output( \$c->prometheus->format );
+        }
+        1;
+
+    | or do {
+        Carp::croak("Plugin::PrometheusTiny controller eval failed: $@");
+    };
+
     $class->inject_component(
-        "Controller::Metrics" => {
+        "Controller::Plugin::PrometheusTiny" => {
             from_component => "Catalyst::Plugin::PrometheusTiny::Controller"
         }
     );
 };
-
-# ensure our Prometheus::Tiny::Shared is created pre-fork
-after setup_finalize => sub {
-    shift->prometheus;
-};
-
-package Catalyst::Plugin::PrometheusTiny::Controller;
-
-use base 'Catalyst::Controller';
-
-sub begin : Private { }
-sub end : Private   { }
-
-sub index : Path Args(0) {
-    my ( $self, $c ) = @_;
-    my $res = $c->res;
-    $res->content_type("text/plain");
-    $res->output( $c->prometheus->format );
-}
 
 1;
 
@@ -196,7 +230,7 @@ Once your app has served from requests you can fetch request/response metrics:
 This plugin integrates L<Prometheus::Tiny::Shared> with your L<Catalyst> app,
 providing some default metrics for requests and responses, with the ability
 to easily add further metrics to your app. A default controller is included
-which makes the metrics available via the C</metrics> endpoint, though this
+which makes the metrics available via the configured L</endpoint>, though this
 can be disabled if you prefer to add your own controller action.
 
 See L<Prometheus::Tiny> for more details of the kind of metrics supported.
@@ -236,6 +270,10 @@ Returns the C<Prometheus::Tiny::Shared> instance.
 
 =head1 CONFIGURATION
 
+=head2 endpoint
+
+The endpoint from which metrics are served. Defaults to C</metrics>.
+
 =head2 filename
 
 It is recommended that this is set to a directory on a memory-backed
@@ -267,7 +305,7 @@ included with the plugin.
 
     no_default_controller => 0      # default
 
-If set to a true value then the default C</metrics> endpoint will not be
+If set to a true value then the default L</endpoint> will not be
 added, and you will need to add your own controller action for exporting the
 metrics. Something like:
 
@@ -289,7 +327,7 @@ Peter Mottram (SysPete) <peter@sysnix.com>
 
 =head1 CONTRIBUTORS
 
-None yet.
+Curtis "Ovid" Poe
 
 =head1 COPYRIGHT
 
