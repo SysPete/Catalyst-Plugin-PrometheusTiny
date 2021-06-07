@@ -50,10 +50,10 @@ sub _clear_prometheus {
 
 sub prometheus {
     my $c = shift;
-    $prometheus ||= do {
+    $prometheus //= do {
         my $config = Catalyst::Utils::merge_hashes(
             $defaults,
-            $c->config->{'Plugin::PrometheusTiny'} || {}
+            $c->config->{'Plugin::PrometheusTiny'} // {}
         );
 
         $metrics_endpoint = $config->{endpoint};
