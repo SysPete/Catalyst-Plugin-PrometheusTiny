@@ -38,6 +38,7 @@ my $defaults = {
 
 my ($prometheus,               # instance
     $ignore_path_regexp,       # set from config
+    $include_action_labels,    # set from config
     $metrics_endpoint,         # set from config with default
     $no_default_controller,    # set from config
     $request_path              # derived from $metrics_endpoint
@@ -55,6 +56,8 @@ sub prometheus {
             $defaults,
             $c->config->{'Plugin::PrometheusTiny'} // {}
         );
+
+        $include_action_labels = $config->{include_action_labels};
 
         $metrics_endpoint = $config->{endpoint};
         if ($metrics_endpoint) {
@@ -114,10 +117,13 @@ after finalize => sub {
     my $action   = $c->action;
 
     my $labels = {
-        code       => $response->code,
-        method     => $request->method,
-        action     => $action->class,
-        action_sub => $action->name
+        code   => $response->code,
+        method => $request->method,
+        $include_action_labels
+        ? ( controller => $action->class,
+            action     => $action->name
+          )
+        : ()
     };
 
     $prometheus->histogram_observe(
@@ -293,6 +299,13 @@ value.
 A regular expression against which C<< $c->request->path >> is checked, and
 if there is a match then the request is not added to default request/response
 metrics.
+
+=head2 include_action_labels
+
+    include_action_labels => 0      # default
+
+If set to a true value, adds C<controller> and C<action> labels to the
+default metrics, in addition to the C<code> and C<method> labels.
 
 =head2 metrics
 
