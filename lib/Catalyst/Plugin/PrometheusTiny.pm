@@ -111,26 +111,32 @@ after finalize => sub {
       && $request->path =~ $ignore_path_regexp;
 
     my $response = $c->response;
-    my $code     = $response->code;
-    my $method   = $request->method;
+    my $action   = $c->action;
+
+    my $labels = {
+        code       => $response->code,
+        method     => $request->method,
+        action     => $action->class,
+        action_sub => $action->name
+    };
 
     $prometheus->histogram_observe(
         'http_request_size_bytes',
         $request->content_length // 0,
-        { method => $method, code => $code }
+        $labels
     );
     $prometheus->histogram_observe(
         'http_response_size_bytes',
         $response->has_body ? length( $response->body ) : 0,
-        { method => $method, code => $code }
+        $labels
     );
     $prometheus->inc(
         'http_requests_total',
-        { method => $method, code => $code }
+        $labels
     );
     $prometheus->histogram_observe(
         'http_request_duration_seconds',
-        $c->stats->elapsed, { method => $method, code => $code }
+        $c->stats->elapsed, $labels
     );
 };
 

@@ -159,7 +159,7 @@ Peter Mottram (SysPete) <peter@sysnix.com>
 
 # CONTRIBUTORS
 
-None yet.
+Graham Christensen <graham@grahamc.com>
 
 # COPYRIGHT
 
