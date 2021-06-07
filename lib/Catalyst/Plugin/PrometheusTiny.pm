@@ -114,10 +114,10 @@ after finalize => sub {
     my $action   = $c->action;
 
     my $labels = {
-        code       => $response->code,
-        method     => $request->method,
-        action     => $action->class,
-        action_sub => $action->name
+        action_class => $action->class,
+        action_sub   => $action->name,
+        code         => $response->code,
+        method       => $request->method,
     };
 
     $prometheus->histogram_observe(

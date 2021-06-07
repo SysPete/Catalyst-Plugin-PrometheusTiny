@@ -13,14 +13,14 @@ my @cases = (
     {
         name   => 'default config',
         expect =>
-          superbagof('http_requests_total{action="TestApp::Controller::Root",action_sub="index",code="200",method="GET"} 1'),
+          superbagof('http_requests_total{action_class="TestApp::Controller::Root",action_sub="index",code="200",method="GET"} 1'),
     },
     {
         name     => 'set endpoint in config',
         config   => { endpoint => '/testme' },
         endpoint => '/testme',
         expect   =>
-          superbagof('http_requests_total{action="TestApp::Controller::Root",action_sub="index",code="200",method="GET"} 1'),
+          superbagof('http_requests_total{action_class="TestApp::Controller::Root",action_sub="index",code="200",method="GET"} 1'),
     },
 );
 

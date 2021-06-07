@@ -2,7 +2,7 @@ Revision history for Catalyst::Plugin::PrometheusTiny
 
 
     * add META resources
-    * add action and action_sub labels to the metrics
+    * add action_class and action_sub labels to the metrics
 
 0.004 - 2021-06-06
 
