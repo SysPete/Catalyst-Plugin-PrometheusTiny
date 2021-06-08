@@ -1,5 +1,6 @@
 Revision history for Catalyst::Plugin::PrometheusTiny
 
+0.005 - 2021-06-08
 
     * add META resources
     * add optional controller and action labels to the metrics
