@@ -348,6 +348,8 @@ Peter Mottram (SysPete) <peter@sysnix.com>
 
 Curtis "Ovid" Poe
 
+Graham Christensen <graham@grahamc.com>
+
 =head1 COPYRIGHT
 
 Copyright (c) 2021 the Catalyst::Plugin::PrometheusTiny L</AUTHOR>

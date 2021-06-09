@@ -54,7 +54,7 @@ curl http://$myappaddress/metrics
 This plugin integrates [Prometheus::Tiny::Shared](https://metacpan.org/pod/Prometheus%3A%3ATiny%3A%3AShared) with your [Catalyst](https://metacpan.org/pod/Catalyst) app,
 providing some default metrics for requests and responses, with the ability
 to easily add further metrics to your app. A default controller is included
-which makes the metrics available via the `/metrics` endpoint, though this
+which makes the metrics available via the configured ["endpoint"](#endpoint), though this
 can be disabled if you prefer to add your own controller action.
 
 See [Prometheus::Tiny](https://metacpan.org/pod/Prometheus%3A%3ATiny) for more details of the kind of metrics supported.
@@ -98,6 +98,10 @@ Returns the `Prometheus::Tiny::Shared` instance.
 
 # CONFIGURATION
 
+## endpoint
+
+The endpoint from which metrics are served. Defaults to `/metrics`.
+
 ## filename
 
 It is recommended that this is set to a directory on a memory-backed
@@ -113,6 +117,15 @@ ignore_path_regex => '^(healthcheck|foobar)'
 A regular expression against which `$c->request->path` is checked, and
 if there is a match then the request is not added to default request/response
 metrics.
+
+## include\_action\_labels
+
+```perl
+include_action_labels => 0      # default
+```
+
+If set to a true value, adds `controller` and `action` labels to the
+default metrics, in addition to the `code` and `method` labels.
 
 ## metrics
 
@@ -135,7 +148,7 @@ included with the plugin.
 no_default_controller => 0      # default
 ```
 
-If set to a true value then the default `/metrics` endpoint will not be
+If set to a true value then the default ["endpoint"](#endpoint) will not be
 added, and you will need to add your own controller action for exporting the
 metrics. Something like:
 
@@ -158,6 +171,8 @@ sub index : Path Args(0) {
 Peter Mottram (SysPete) <peter@sysnix.com>
 
 # CONTRIBUTORS
+
+Curtis "Ovid" Poe
 
 Graham Christensen <graham@grahamc.com>
 
