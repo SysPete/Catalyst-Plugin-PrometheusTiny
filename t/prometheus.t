@@ -26,7 +26,13 @@ subtest 'Prometheus::Tiny object is cached as expected' => sub {
     ok my $prometheus = $obj->prometheus,
       "... and we can call its prometheus method";
 
-    isa_ok $prometheus, 'Prometheus::Tiny::Shared', 'prometheus';
+    isa_ok $prometheus, 'Catalyst::Plugin::PrometheusTiny::Proxy',
+      'prometheus';
+
+    ok my $prom_tiny = $prometheus->prometheus_tiny,
+    "we can call prometheus_tiny on our Proxy object";
+
+    isa_ok $prom_tiny, 'Prometheus::Tiny::Shared', 'prometheus_tiny';
 
     ok my $prometheus2 = $obj->prometheus,
       "call prometheus method a second time";

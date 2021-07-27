@@ -5,44 +5,13 @@ use warnings;
 use v5.10.1;
 
 our $VERSION = '0.006';
-
 $VERSION = eval $VERSION;
 
-use Carp            ();
-use Catalyst::Utils ();
-use Moose::Role;
+use Carp ();
 use Prometheus::Tiny::Shared;
+use Moo::Role;
 
-my $defaults = {
-    metrics => {
-        http_request_duration_seconds => {
-            help => 'Request durations in seconds',
-            type => 'histogram',
-        },
-        http_request_size_bytes => {
-            help    => 'Request sizes in bytes',
-            type    => 'histogram',
-            buckets => [ 1, 50, 100, 1_000, 50_000, 500_000, 1_000_000 ],
-        },
-        http_requests_total => {
-            help => 'Total number of http requests processed',
-            type => 'counter',
-        },
-        http_response_size_bytes => {
-            help    => 'Response sizes in bytes',
-            type    => 'histogram',
-            buckets => [ 1, 50, 100, 1_000, 50_000, 500_000, 1_000_000 ],
-        }
-    },
-};
-
-my ($prometheus,               # instance
-    $ignore_path_regexp,       # set from config
-    $include_action_labels,    # set from config
-    $metrics_endpoint,         # set from config with default
-    $no_default_controller,    # set from config
-    $request_path              # derived from $metrics_endpoint
-);
+my $prometheus;    # instance
 
 # for testing
 sub _clear_prometheus {
@@ -50,68 +19,23 @@ sub _clear_prometheus {
 }
 
 sub prometheus {
-    my $c = shift;
-    $prometheus //= do {
-        my $config = Catalyst::Utils::merge_hashes(
-            $defaults,
-            $c->config->{'Plugin::PrometheusTiny'} // {}
-        );
-
-        $include_action_labels = $config->{include_action_labels};
-
-        $metrics_endpoint = $config->{endpoint};
-        if ($metrics_endpoint) {
-            if ( $metrics_endpoint !~ m|^/| ) {
-                Carp::croak
-                  "Plugin::PrometheusTiny endpoint '$metrics_endpoint' does not begin with '/'";
-            }
-        }
-        else {
-            $metrics_endpoint = '/metrics';
-        }
-
-        $request_path = $metrics_endpoint;
-        $request_path =~ s|^/||;
-
-        $ignore_path_regexp = $config->{ignore_path_regexp};
-        if ($ignore_path_regexp) {
-            $ignore_path_regexp = qr/$ignore_path_regexp/
-              unless 'Regexp' eq ref $ignore_path_regexp;
-        }
-
-        $no_default_controller = $config->{no_default_controller};
-
-        my $metrics = $config->{metrics};
-        Carp::croak "Plugin::PrometheusTiny metrics must be a hash reference"
-          unless 'HASH' eq ref $metrics;
-
-        my $prom
-          = Prometheus::Tiny::Shared->new(
-            ( filename => $config->{filename} ) x defined $config->{filename}
-          );
-
-        for my $name ( sort keys %$metrics ) {
-            $prom->declare(
-                $name,
-                %{ $metrics->{$name} },
-            );
-        }
-
-        $prom;
-    };
-    return $prometheus;
+    $prometheus //= Catalyst::Plugin::PrometheusTiny::Proxy->new(
+        catalyst_config => shift->config->{'Plugin::PrometheusTiny'} // {},
+    );
 }
 
 after finalize => sub {
     my $c       = shift;
     my $request = $c->request;
+    state $config = $prometheus->config;
 
     return
-      if !$no_default_controller && $request->path eq $request_path;
+      if !$config->{no_default_controller}
+      && $request->path eq $config->{request_path};
 
     return
-      if $ignore_path_regexp
-      && $request->path =~ $ignore_path_regexp;
+      if $config->{ignore_path_regexp}
+      && $request->path =~ $config->{ignore_path_regexp};
 
     my $response = $c->response;
     my $action   = $c->action;
@@ -119,7 +43,7 @@ after finalize => sub {
     my $labels = {
         code   => $response->code,
         method => $request->method,
-        $include_action_labels
+        $config->{include_action_labels}
         ? ( controller => $action->class,
             action     => $action->name
           )
@@ -144,26 +68,23 @@ after finalize => sub {
         'http_request_duration_seconds',
         $c->stats->elapsed, $labels
     );
+
+    # push gathered metrics into PrometheusTiny::Shared
+    $prometheus->submit_metrics;
 };
 
 before setup_components => sub {
     my $class = shift;
 
-    # initialise prometheus instance pre-fork and setup lexicals
-    $class->prometheus;
+    # initialise prometheus instance pre-fork and build config
+    my $config = $class->prometheus->config;
 
     return
-      if $class->config->{'Plugin::PrometheusTiny'}{no_default_controller};
+      if $config->{no_default_controller};
 
-    # Paranoia, as we're going to eval $metrics_endpoint
-    if ( $metrics_endpoint =~ s|[^-A-Za-z0-9\._~/]||g ) {
-        $class->log->warn(
-            "Plugin::PrometheusTiny unsafe characters removed from endpoint");
-    }
-
+    my $endpoint = $config->{endpoint};
     $class->log->info(
-        "Plugin::PrometheusTiny metrics endpoint installed at $metrics_endpoint"
-    );
+        "Plugin::PrometheusTiny metrics endpoint installed at $endpoint");
 
     eval qq|
 
@@ -173,7 +94,7 @@ before setup_components => sub {
         sub begin : Private { }
         sub end : Private   { }
 
-        sub metrics : Path($metrics_endpoint) Args(0) {
+        sub metrics : Path($endpoint) Args(0) {
             my ( \$self, \$c ) = \@_;
             my \$res = \$c->res;
             \$res->content_type("text/plain");
@@ -191,6 +112,149 @@ before setup_components => sub {
         }
     );
 };
+
+package    # hide from PAUSE
+  Catalyst::Plugin::PrometheusTiny::Proxy;
+
+use Catalyst::Utils qw();
+use Moo;
+
+has catalyst_config => (
+    is       => 'ro',
+    required => 1,
+);
+
+has config => (
+    is      => 'ro',
+    default => sub {
+        my $self = shift;
+
+        my $config = Catalyst::Utils::merge_hashes(
+            $self->default_config,
+            $self->catalyst_config,
+        );
+
+        if ( $config->{ignore_path_regexp} ) {
+            $config->{ignore_path_regexp} = qr/$config->{ignore_path_regexp}/
+              unless 'Regexp' eq ref $config->{ignore_path_regexp};
+        }
+
+        if ( $config->{endpoint} ) {
+            if ( $config->{endpoint} !~ m|^/| ) {
+                Carp::croak
+                  "Plugin::PrometheusTiny endpoint '$config->{endpoint}' does not begin with '/'";
+            }
+            elsif ( $config->{endpoint} =~ m|[^-A-Za-z0-9\._~/]| ) {
+
+                # Paranoia, as we might eval $config->{endpoint}
+                Carp::croak
+                  "Plugin::PrometheusTiny endpoint contains unsafe characters";
+            }
+        }
+        else {
+            $config->{endpoint} = '/metrics';
+        }
+
+        $config->{request_path} = $config->{endpoint};
+        $config->{request_path} =~ s|^/||;
+
+        if ( 'HASH' ne ref $config->{metrics} ) {
+            Carp::croak
+              "Plugin::PrometheusTiny metrics must be a hash reference";
+        }
+
+        return $config;
+    },
+);
+
+has metrics => (
+    is      => 'ro',
+    lazy    => 1,
+    default => sub { [] },
+    clearer => '_clear_metrics',
+);
+
+has prometheus_tiny => (
+    is      => 'ro',
+    lazy    => 1,
+    builder => '_build_prometheus_tiny',
+);
+
+sub _build_prometheus_tiny {
+    my $self = shift;
+
+    my $filename = $self->config->{filename};
+    my $metrics  = $self->config->{metrics};
+
+    my $prom_tiny = Prometheus::Tiny::Shared->new(
+        ( filename => $filename ) x defined $filename );
+
+    for my $name ( sort keys %$metrics ) {
+        $prom_tiny->declare(
+            $name,
+            %{ $metrics->{$name} },
+        );
+    }
+
+    return $prom_tiny;
+}
+
+sub submit_metrics {
+    my $self      = shift;
+    my $prom_tiny = $self->prometheus_tiny;
+
+    for my $metric ( @{ $self->metrics } ) {
+        my ( $method, @args ) = @$metric;
+        $prom_tiny->$method(@args);
+    }
+    $self->_clear_metrics;
+}
+
+for my $method (qw/ set add inc dec histogram_observe /) {
+    no strict 'refs';
+    *$method = sub {
+        my ( $self, @args ) = @_;
+        push @{ $self->metrics }, [ $method, @args ];
+    };
+}
+
+for my $method (qw/ clear declare psgi /) {
+    no strict 'refs';
+    *$method = sub {
+        shift->prometheus_tiny->$method;
+    };
+}
+
+sub format {
+    my $self = shift;
+    $self->submit_metrics;    # JIC
+    return $self->prometheus_tiny->format;
+}
+
+sub default_config {
+    return {
+        metrics => {
+            http_request_duration_seconds => {
+                help => 'Request durations in seconds',
+                type => 'histogram',
+            },
+            http_request_size_bytes => {
+                help    => 'Request sizes in bytes',
+                type    => 'histogram',
+                buckets => [ 1, 50, 100, 1_000, 50_000, 500_000, 1_000_000 ],
+            },
+            http_requests_total => {
+                help => 'Total number of http requests processed',
+                type => 'counter',
+            },
+            http_response_size_bytes => {
+                help    => 'Response sizes in bytes',
+                type    => 'histogram',
+                buckets => [ 1, 50, 100, 1_000, 50_000, 500_000, 1_000_000 ],
+            }
+        },
+    };
+}
 
 1;
 
@@ -278,7 +342,11 @@ The following metrics are included by default:
         $c->prometheus->inc(...);
     }
 
-Returns the C<Prometheus::Tiny::Shared> instance.
+Returns the C<Prometheus::Tiny::Shared> proxy instance. The proxy
+gathers metrics during the request cycle, but does not submit them to
+C<Prometheus::Tiny::Shared> until after L<Catalyst/finalize>. Using the
+proxy reduces response time of the request, especially for calls to
+C<historgram_observe>.
 
 =head1 CONFIGURATION
 
